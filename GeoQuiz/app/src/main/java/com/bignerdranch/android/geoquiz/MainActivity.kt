@@ -18,41 +18,6 @@ class MainActivity : ComponentActivity() {
 
     private val quizViewModel: QuizViewModel by viewModels()
 
-    private val questionBank = listOf(
-        Question(
-            textResId = R.string.question_australia,
-            answer = true,
-            answered = false,
-            correct = false
-        ),
-        Question(
-            textResId = R.string.question_oceans,
-            answer = true,
-            answered = false,
-            correct = false
-        ),
-        Question(
-            textResId = R.string.question_mideast,
-            answer = false,
-            answered = false,
-            correct = false
-        ),
-        Question(
-            textResId = R.string.question_africa,
-            answer = false,
-            answered = false,
-            correct = false
-        ),
-        Question(
-            textResId = R.string.question_americas,
-            answer = true,
-            answered = false,
-            correct = false
-        ),
-        Question(R.string.question_asia, answer = true, answered = false, correct = false))
-
-    private var currentIndex = 0
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate(Bundle?) called")
@@ -67,29 +32,26 @@ class MainActivity : ComponentActivity() {
             checkAnswer(true)
         }
 
-
         binding.falseButton.setOnClickListener { view: View ->
             checkAnswer(false)
         }
 
         binding.nextButton.setOnClickListener {
-            currentIndex = (currentIndex + 1) % questionBank.size
+            quizViewModel.moveToNext()
             updateQuestion()
         }
 
         binding.backButton.setOnClickListener {
-            currentIndex = if (currentIndex - 1 < 0) {
-                questionBank.size - 1
-            } else {
-                (currentIndex - 1) % questionBank.size
-            }
+            quizViewModel.moveToPrevious()
             updateQuestion()
         }
 
         binding.questionTextView.setOnClickListener {
-            // Get current question\
-            val questionText = "Next: " + getString(questionBank[(currentIndex + 1) % questionBank.size].textResId)
-            Snackbar.make(binding.root, questionText, Snackbar.LENGTH_SHORT).show()
+            quizViewModel.moveToNext()
+            val nextQuestionTextResId = quizViewModel.getCurrentQuestionTextResId()
+            val nextQuestionText = "Next: " + getString(nextQuestionTextResId)
+            Snackbar.make(binding.root, nextQuestionText, Snackbar.LENGTH_SHORT).show()
+            quizViewModel.moveToPrevious()
         }
 
         updateQuestion()
@@ -121,7 +83,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateQuestion() {
-        val questionTextResId = questionBank[currentIndex].textResId
+        val questionTextResId = quizViewModel.getCurrentQuestionTextResId()
         binding.questionTextView.setText(questionTextResId)
         resetButtons()
 
@@ -129,7 +91,7 @@ class MainActivity : ComponentActivity() {
 
     private fun resetButtons() {
         // Reset buttons depending on answered status
-        if (questionBank[currentIndex].answered == true) {
+        if (quizViewModel.currentQuestionAnswered) {
             binding.trueButton.isEnabled = true
             binding.falseButton.isEnabled = true
 
@@ -145,14 +107,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAnswer(userAnswer: Boolean) {
-        val correctAnswer = questionBank[currentIndex].answer
+        val correctAnswer = quizViewModel.currentQuestionAnswer
 
 
-        val messageResId = if (userAnswer == correctAnswer && questionBank[currentIndex].answered == false) {
-            questionBank[currentIndex].correct = true
+        val messageResId = if (userAnswer == correctAnswer && quizViewModel.currentQuestionAnswered == false) {
+            quizViewModel.setCurrentAnswer(true)
             R.string.correct_toast
-        } else if (userAnswer != correctAnswer && questionBank[currentIndex].answered == false){
-            questionBank[currentIndex].correct = false
+        } else if (userAnswer != correctAnswer && quizViewModel.currentQuestionAnswered == false){
+            quizViewModel.setCurrentAnswer(false)
             R.string.incorrect_toast
         } else {
             R.string.answered
@@ -160,26 +122,19 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, messageResId, Toast.LENGTH_SHORT).show()
 
         // Mark question as answered
-        questionBank[currentIndex].answered = true
+        quizViewModel.setAsAnswered(true)
         resetButtons()
 
         checkGrade()
     }
 
     private fun checkGrade() {
-        val allAnswered = questionBank.all { it.answered }
+        val gradePercentage = quizViewModel.checkGrade()
 
-        if (allAnswered == true) {
-            val totalQuestions = questionBank.size
-            val correctAnswers = questionBank.count { it.correct }
-            val gradePercentage = (correctAnswers.toDouble() / totalQuestions) * 100
-
+        if (gradePercentage != null)
+        {
             val messageResId = "Grade: $gradePercentage%"
-
             Toast.makeText(this,messageResId, Toast.LENGTH_LONG).show()
-
-            // Reset the quiz
-            questionBank.forEach { it.answered = false }
         }
 
     }
