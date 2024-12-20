@@ -1,6 +1,5 @@
 package com.bignerdranch.android.geoquiz
 
-import android.app.Activity
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Build
