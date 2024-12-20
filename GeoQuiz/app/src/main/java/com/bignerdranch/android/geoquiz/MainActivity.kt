@@ -1,11 +1,17 @@
 package com.bignerdranch.android.geoquiz
 
+import android.app.Activity
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import com.bignerdranch.android.geoquiz.R.color.purple_500
 import com.bignerdranch.android.geoquiz.databinding.ActivityMainBinding
 import com.google.android.material.snackbar.Snackbar
@@ -17,6 +23,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var binding: ActivityMainBinding
 
     private val quizViewModel: QuizViewModel by viewModels()
+
+    private val cheatLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { result ->
+        // Handle the result
+        if (result.resultCode == RESULT_OK) {
+            quizViewModel.isCheater = result.data?.getBooleanExtra(EXTRA_ANSWER_SHOWN, false) ?: false
+        }
+    }
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +57,15 @@ class MainActivity : ComponentActivity() {
             updateQuestion()
         }
 
+        binding.cheatButton.setOnClickListener {
+            // Start CheatActivity
+            //val intent = Intent(this, CheatActivity::class.java)
+            val answerIsTrue = quizViewModel.currentQuestionAnswer
+            val intent = CheatActivity.newIntent(this@MainActivity, answerIsTrue)
+            //startActivity(intent)
+            cheatLauncher.launch(intent)
+        }
+
         binding.backButton.setOnClickListener {
             quizViewModel.moveToPrevious()
             updateQuestion()
@@ -55,6 +80,9 @@ class MainActivity : ComponentActivity() {
         }
 
         updateQuestion()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            blurCheatButton()
+        }
     }
 
     override fun onStart() {
@@ -109,16 +137,31 @@ class MainActivity : ComponentActivity() {
     private fun checkAnswer(userAnswer: Boolean) {
         val correctAnswer = quizViewModel.currentQuestionAnswer
 
+        val messageResId = when {
+            quizViewModel.isCheater -> R.string.judgment_toast
+            userAnswer == correctAnswer && !quizViewModel.currentQuestionAnswered -> {
+                quizViewModel.setCurrentAnswer(true)
+                R.string.correct_toast
+            }
+            userAnswer != correctAnswer && !quizViewModel.currentQuestionAnswered -> {
+                quizViewModel.setCurrentAnswer(false)
+                R.string.incorrect_toast
+            }
+            else -> R.string.answered
 
-        val messageResId = if (userAnswer == correctAnswer && quizViewModel.currentQuestionAnswered == false) {
-            quizViewModel.setCurrentAnswer(true)
-            R.string.correct_toast
-        } else if (userAnswer != correctAnswer && quizViewModel.currentQuestionAnswered == false){
-            quizViewModel.setCurrentAnswer(false)
-            R.string.incorrect_toast
-        } else {
-            R.string.answered
+
+
         }
+
+//        val messageResId = if (userAnswer == correctAnswer && quizViewModel.currentQuestionAnswered == false) {
+//            quizViewModel.setCurrentAnswer(true)
+//            R.string.correct_toast
+//        } else if (userAnswer != correctAnswer && quizViewModel.currentQuestionAnswered == false){
+//            quizViewModel.setCurrentAnswer(false)
+//            R.string.incorrect_toast
+//        } else {
+//            R.string.answered
+//        }
         Toast.makeText(this, messageResId, Toast.LENGTH_SHORT).show()
 
         // Mark question as answered
@@ -138,5 +181,17 @@ class MainActivity : ComponentActivity() {
         }
 
     }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun blurCheatButton() {
+        val effect = RenderEffect.createBlurEffect(
+            10.0f,
+            10.0f,
+            Shader.TileMode.CLAMP
+        )
+        binding.cheatButton.setRenderEffect(effect)
+    }
+
+
 
 }

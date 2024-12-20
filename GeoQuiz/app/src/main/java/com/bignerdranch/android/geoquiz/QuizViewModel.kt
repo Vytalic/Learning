@@ -1,21 +1,12 @@
 package com.bignerdranch.android.geoquiz
 
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 
-private const val TAG = "QuizViewModel"
 const val CURRENT_INDEX_KEY = "CURRENT_INDEX_KEY"
+const val IS_CHEATER_KEY = "IS_CHEATER_KEY"
 
 class QuizViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel() {
-//    init {
-//        Log.d(TAG, "ViewModel instance created")
-//    }
-//
-//    override fun onCleared() {
-//        super.onCleared()
-//        Log.d(TAG, "ViewModel instance about to be destroyed")
-//    }
 
     private val questionBank = listOf(
         Question(
@@ -53,6 +44,10 @@ class QuizViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel(
             answered = false,
             correct = false)
     )
+
+    var isCheater: Boolean
+        get() = savedStateHandle.get(IS_CHEATER_KEY) ?: false
+        set(value) = savedStateHandle.set(IS_CHEATER_KEY, value)
 
     private var currentIndex: Int
         get() = savedStateHandle[CURRENT_INDEX_KEY] ?: 0

@@ -50,6 +50,14 @@
             app:icon="@drawable/arrow_left"
             app:iconGravity="start" />
 
+        <Button
+            android:id="@+id/cheat_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="45dp"
+            android:text="@string/cheat_button"
+            />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/next_button"
             android:layout_width="wrap_content"
