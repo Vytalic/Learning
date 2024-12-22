@@ -16,6 +16,14 @@ import com.bignerdranch.android.criminalintent.ui.theme.CriminalIntentTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.fragment_crime_detail)
+
+        // Add the fragment if it’s not already added
+//        if (savedInstanceState == null) {
+//            val fragment = CrimeDetailFragment() // Create an instance of your fragment
+//            supportFragmentManager.beginTransaction()
+//                .replace(R.id.fragment_container, fragment)
+//                .commit()
 
     }
 }
