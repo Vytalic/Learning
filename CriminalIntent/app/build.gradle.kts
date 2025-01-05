@@ -52,6 +52,8 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.fragment)
     implementation(libs.material)
+    implementation(libs.lifecycleViewModelKtx)
+    implementation(libs.recyclerView)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
