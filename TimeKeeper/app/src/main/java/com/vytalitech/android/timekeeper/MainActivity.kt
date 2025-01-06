@@ -1,23 +1,16 @@
 package com.vytalitech.android.timekeeper
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.vytalitech.android.timekeeper.databinding.ActivityMainBinding
-import com.vytalitech.android.timekeeper.ui.theme.TimekeeperTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private lateinit var database: AppDatabase
+    private lateinit var adapter: CategoryAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,11 +19,43 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Set up RecyclerView with adapter
-        val categories = mutableListOf("Category 1", "Category 2")
-        val adapter = CategoryAdapter(categories)
+        database = DatabaseProvider.getDatabase(this)
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
-        binding.recyclerView.adapter = adapter
 
+        binding.fabAddCategory.setOnClickListener {
+            val newCategoryName = "New Category ${System.currentTimeMillis() % 1000}"
+            val newCategory = Category(name = newCategoryName)
+
+            // Insert category in a coroutine
+            lifecycleScope.launch {
+                database.categoryDao().insertCategory(newCategory)
+                refreshCategories()
+            }
+        }
+
+
+        // Load categories from database
+        lifecycleScope.launch {
+            val categories = database.categoryDao().getAllCategories()
+            adapter = CategoryAdapter(categories.map { it.name }) // Maps to list of names
+            binding.recyclerView.adapter = adapter
+        }
+
+
+//        // Set up RecyclerView with adapter
+//        val categories = mutableListOf("Category 1", "Category 2")
+//        val adapter = CategoryAdapter(categories)
+//        binding.recyclerView.layoutManager = LinearLayoutManager(this)
+//        binding.recyclerView.adapter = adapter
+
+
+
+
+    }
+
+    private suspend fun refreshCategories() {
+        val categories = database.categoryDao().getAllCategories()
+        adapter = CategoryAdapter(categories.map { it.name })
+        binding.recyclerView.adapter = adapter
     }
 }

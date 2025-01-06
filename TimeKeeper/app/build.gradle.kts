@@ -2,11 +2,12 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.kapt)
 }
 
 android {
     namespace = "com.vytalitech.android.timekeeper"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.vytalitech.android.timekeeper"
@@ -42,6 +43,7 @@ android {
 
 dependencies {
 
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -52,8 +54,17 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.recycler.view)
     implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.room)
-    implementation(libs.androidx.room.compiler)
+    //implementation(libs.kotlinx.metadata.jvm)
+    runtimeOnly("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.9.0")
+    implementation(libs.androidx.room) {
+        exclude("com.intellij", "annotations")
+    }
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler) {
+        exclude("com.intellij", "annotations")
+    }
+    implementation("org.jetbrains:annotations:23.0.0")
+    implementation(libs.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
