@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">timekeeper</string>
+    <string name="category">Category</string>
+    <string name="btn_start">Start</string>
+    <string name="btn_stop">Stop</string>
+
+</resources>
