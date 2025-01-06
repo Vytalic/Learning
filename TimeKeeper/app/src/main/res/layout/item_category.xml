@@ -4,8 +4,7 @@
     android:orientation="horizontal"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="8dp"
-    android:background="@color/white">
+    android:padding="8dp" >
 
     <TextView
         android:id="@+id/tvCategoryName"
@@ -13,8 +12,16 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:text="@string/category"
-        android:textSize="18sp"
-        android:textColor="@color/black"/>
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/tvTimeTracker"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/time_tracker"
+        android:textSize="16sp"
+        android:layout_margin="8dp"
+        android:layout_gravity="center_vertical" />
 
     <Button
         android:id="@+id/btnStart"

@@ -3,27 +3,46 @@ package com.vytalitech.android.timekeeper
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.vytalitech.android.timekeeper.databinding.ActivityMainBinding
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var database: AppDatabase
     private lateinit var adapter: CategoryAdapter
-    private val activeTimers = mutableMapOf<Int, Boolean>()
+    private lateinit var timerViewModel: TimerViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize the database
+        database = DatabaseProvider.getDatabase(this)
+
+        // Initialize the TimerViewModel with the factory
+        val factory = TimerViewModelFactory(database)
+        timerViewModel = ViewModelProvider(this, factory).get(TimerViewModel::class.java)
 
         // Inflate layout using binding class
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        database = DatabaseProvider.getDatabase(this)
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
+
+        // Initialize adapter with an empty list
+        adapter = CategoryAdapter(
+            mutableListOf(),
+            onStartClick = { category -> timerViewModel.startTimer(category.id) },
+            onStopClick = { category -> timerViewModel.stopTimer(category.id) }
+        )
+        binding.recyclerView.adapter = adapter
+
+        // Observe timer states
+        timerViewModel.categoryTimes.observe(this) { times ->
+            adapter.updateTimes(times)
+        }
 
         // Add Category FAB
         binding.fabAddCategory.setOnClickListener {
@@ -36,7 +55,7 @@ class MainActivity : AppCompatActivity() {
             input.hint = "Enter category name"
             builder.setView(input)
 
-            builder.setPositiveButton("Add") {_, _ ->
+            builder.setPositiveButton("Add") { _, _ ->
                 val categoryName = input.text.toString().trim()
                 if (categoryName.isNotEmpty()) {
                     val newCategory = Category(name = categoryName)
@@ -51,14 +70,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            builder.setNegativeButton("Cancel") { dialog, _ ->
-                dialog.dismiss()
-            }
-
+            builder.setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
             // Show the dialog
             builder.show()
-
-
         }
 
         // Remove Category FAB
@@ -69,52 +83,45 @@ class MainActivity : AppCompatActivity() {
                     val lastCategory = categories.last()
                     database.categoryDao().deleteCategory(lastCategory)
                     refreshCategories()
-                    Toast.makeText(this@MainActivity,
+                    Toast.makeText(
+                        this@MainActivity,
                         "Removed: ${lastCategory.name}",
-                        Toast.LENGTH_SHORT)
-                        .show()
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
-                    Toast.makeText(this@MainActivity,
+                    Toast.makeText(
+                        this@MainActivity,
                         "No categories to delete",
-                        Toast.LENGTH_SHORT)
-                        .show()
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
 
-        // Refresh categories when activity starts
+        // Trigger refresh when activity is recreated
+        timerViewModel.reEmitCategoryTimes()
+
         lifecycleScope.launch {
             refreshCategories()
         }
     }
 
-
-
     private suspend fun refreshCategories() {
         val categories = database.categoryDao().getAllCategories()
 
-        adapter = CategoryAdapter(categories, onStartClick = { category ->
-            if (activeTimers[category.id] == true) {
-                Toast.makeText(this, "${category.name} is already running!", Toast.LENGTH_SHORT)
-                    .show()
-                return@CategoryAdapter
-            }
-            activeTimers[category.id] = true
+        // Update adapter's data directly
+        adapter.updateCategories(categories)
 
-            lifecycleScope.launch {
-                while (activeTimers[category.id] == true) {
-                    category.totalTime += 1
-                    database.categoryDao().updateCategory(category)
-                    refreshCategories()
-                    delay(1000)
-                }
-            }
-        }, onStopClick = { category ->
-            activeTimers[category.id] = false
-        })
-        binding.recyclerView.adapter = adapter
+        // Load persisted totalTime into categoryTimes
+        val timesMap = categories.associate { it.id to it.totalTime }
+        timerViewModel.categoryTimes.value = timesMap.toMutableMap()
+
+//        adapter = CategoryAdapter(
+//            categories,
+//            onStartClick = { category -> timerViewModel.startTimer(category.id) },
+//            onStopClick = { category -> timerViewModel.stopTimer(category.id) }
+//        )
+//        binding.recyclerView.adapter = adapter
     }
-
-
 }
 
