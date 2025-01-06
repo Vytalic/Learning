@@ -3,6 +3,7 @@
     <string name="category">Category</string>
     <string name="btn_start">Start</string>
     <string name="btn_stop">Stop</string>
-    <string name="content_desc">Add Category</string>
+    <string name="add_content_desc">Add Category</string>
+    <string name="rem_content_desc">Remove Category</string>
 
 </resources>

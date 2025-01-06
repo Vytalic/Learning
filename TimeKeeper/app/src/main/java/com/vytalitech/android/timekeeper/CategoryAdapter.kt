@@ -9,7 +9,9 @@ import androidx.recyclerview.widget.RecyclerView.Recycler
 import com.vytalitech.android.timekeeper.databinding.ItemCategoryBinding
 
 class CategoryAdapter(
-    private val categories: List<String>
+    private val categories: List<Category>,
+    private val onStartClick: (Category) -> Unit,
+    private val onStopClick: (Category) -> Unit
 ) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
 
     class CategoryViewHolder(val binding: ItemCategoryBinding) : RecyclerView.ViewHolder(binding.root)
@@ -22,13 +24,10 @@ class CategoryAdapter(
 
     override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
         // Use binding object to access views directly
-        holder.binding.tvCategoryName.text = categories[position]
-        holder.binding.btnStart.setOnClickListener {
-            TODO("Add logic for starting the timer")
-        }
-        holder.binding.btnStop.setOnClickListener {
-            TODO("Add logic for stopping the timer")
-        }
+        val category = categories[position]
+        holder.binding.tvCategoryName.text = category.name
+        holder.binding.btnStart.setOnClickListener { onStartClick(category) }
+        holder.binding.btnStop.setOnClickListener { onStopClick(category) }
     }
 
     override fun getItemCount(): Int = categories.size
