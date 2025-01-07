@@ -65,6 +65,7 @@ dependencies {
     }
     implementation("org.jetbrains:annotations:23.0.0")
     implementation(libs.material)
+    implementation(libs.mp.android.chart)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

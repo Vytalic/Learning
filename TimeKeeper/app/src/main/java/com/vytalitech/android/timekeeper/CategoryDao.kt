@@ -23,4 +23,7 @@ interface CategoryDao {
 
     @Query("SELECT * FROM categories WHERE id = :categoryId LIMIT 1")
     suspend fun getCategoryById(categoryId: Int): Category?
+
+    @Query("SELECT * FROM categories WHERE date BETWEEN :startDate AND :endDate")
+    suspend fun getCategoriesByDateRange(startDate: String, endDate: String): List<Category>
 }

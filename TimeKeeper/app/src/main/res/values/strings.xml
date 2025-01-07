@@ -6,5 +6,14 @@
     <string name="add_content_desc">Add Category</string>
     <string name="rem_content_desc">Remove Category</string>
     <string name="time_tracker">00:00:00</string>
+    <string name="home">Home</string>
+    <string name="graph">Graph</string>
+    <string name="settings">Settings</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="add_category">Add Category</string>
+    <string name="remove_category">Remove Category</string>
+    <string name="fab_menu">Open actions menu</string>
+    <string name="menu">Menu</string>
 
 </resources>
