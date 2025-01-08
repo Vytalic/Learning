@@ -39,7 +39,7 @@
         android:layout_height="wrap_content"
         android:visibility="gone"
         android:padding="16dp"
-        android:text="@string/cancel"
+        android:text="@string/btn_cancel"
         android:textSize="18sp"
         android:backgroundTint="@color/btnOrange"
         android:textColor="@android:color/white"
@@ -47,9 +47,6 @@
         android:layout_marginBottom="16dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
-
-
-
 
     <!-- Bottom Navigation View -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -60,7 +57,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
-
 
     <!-- Fragment Container -->
     <FrameLayout

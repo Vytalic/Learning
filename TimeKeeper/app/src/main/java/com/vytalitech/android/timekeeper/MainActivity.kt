@@ -90,8 +90,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Initialize the TimerViewModel with the factory
+//        val factory = TimerViewModelFactory(database)
+//        timerViewModel = ViewModelProvider(this, factory).get(TimerViewModel::class.java)
+        // Initialize the TimerViewModel with the factory
         val factory = TimerViewModelFactory(database)
-        timerViewModel = ViewModelProvider(this, factory).get(TimerViewModel::class.java)
+        timerViewModel = ViewModelProvider(this, factory)[TimerViewModel::class.java]
+
 
         timerViewModel.timerEvent.observe(this) { event ->
             event?.let {
@@ -156,7 +160,29 @@ class MainActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     database.categoryDao().deleteCategory(category)
                     refreshCategories()
-                    Toast.makeText(this@MainActivity, "Removed: ${category.name}", Toast.LENGTH_SHORT).show()
+//                    Toast.makeText(
+//                        this@MainActivity,
+//                        "Removed: ${category.name}",
+//                        Toast.LENGTH_SHORT
+//                    ).show()
+
+                    // Update button state
+                    if (adapter.itemCount == 0) {
+                        adapter.disableRemoveMode()
+                    } else {
+                        binding.btnCancelRemoveMode.text = getString(R.string.btn_finish)
+                        binding.btnCancelRemoveMode.setBackgroundColor(getColor(R.color.btnGreen))
+                    }
+                }
+            },
+            onRemoveModeUpdate = { isActive ->
+                binding.btnCancelRemoveMode.apply {
+                    text = if (isActive) {
+                        context.getString(R.string.btn_cancel)
+                    } else {
+                        context.getString(R.string.btn_finish)
+                    }
+                    visibility = View.VISIBLE
                 }
             }
         )
@@ -215,6 +241,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var isServiceRunning = false
+    private var isRemoveModeActive = false
 
     override fun onStop() {
         super.onStop()
@@ -339,8 +366,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun exitRemoveMode() {
+        isRemoveModeActive = false
+        adapter.disableRemoveMode() // Exit remove mode in adapter
         binding.btnCancelRemoveMode.visibility = View.GONE
-        Toast.makeText(this, "Exited remove mode", Toast.LENGTH_SHORT).show()
     }
 
     private suspend fun refreshCategories() {

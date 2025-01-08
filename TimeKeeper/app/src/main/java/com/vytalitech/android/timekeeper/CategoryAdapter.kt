@@ -14,7 +14,8 @@ class CategoryAdapter(
     private val activeTimers: Map<Int, Boolean>,
     private val onStartClick: (Category) -> Unit,
     private val onStopClick: (Category) -> Unit,
-    private val onRemoveClick: (Category) -> Unit
+    private val onRemoveClick: (Category) -> Unit,
+    private val onRemoveModeUpdate: (Boolean) -> Unit // Notify parent when mode changes
 ) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
 
     class CategoryViewHolder(val binding: ItemCategoryBinding) : RecyclerView.ViewHolder(binding.root)
@@ -24,12 +25,16 @@ class CategoryAdapter(
 
     fun enableRemoveMode() {
         isRemoveModeActive = true
-        notifyItemRangeChanged(0, itemCount) // Notify the adapter of all items
+        notifyItemRangeChanged(0, itemCount)
+        onRemoveModeUpdate(true) // Notify parent
+
     }
 
     fun disableRemoveMode() {
         isRemoveModeActive = false
-        notifyItemRangeChanged(0, itemCount) // Notify the adapter of all items
+        notifyItemRangeChanged(0, itemCount)
+        onRemoveModeUpdate(false) // Notify parent
+
     }
 
 
@@ -44,31 +49,26 @@ class CategoryAdapter(
     override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
         val category = categories[position]
 
-        // Set category name and initial time
         holder.binding.tvCategoryName.text = category.name
         holder.binding.tvTimeTracker.text = formatTime(mutableCategoryTimes[category.id] ?: 0)
 
         if (isRemoveModeActive) {
-            // Change button to "Remove" during Remove Mode
             holder.binding.btnToggle.apply {
                 text = context.getString(R.string.btn_remove)
                 setBackgroundColor(context.getColor(R.color.btnRed))
                 setOnClickListener {
                     AlertDialog.Builder(context)
-                        .setTitle("Delete Category")
-                        .setMessage("Are you sure you want to delete ${category.name}?")
-                        .setPositiveButton("Yes") { _, _ ->
+                        .setTitle(context.getString(R.string.delete_category_title))
+                        .setMessage(context.getString(R.string.delete_category_message, category.name))
+                        .setPositiveButton(context.getString(R.string.yes)) { _, _ ->
                             onRemoveClick(category)
-                            disableRemoveMode() // Exit Remove Mode after deletion
+                            if (categories.size == 1) disableRemoveMode() // Auto-exit if last category
                         }
-                        .setNegativeButton("Cancel") { _, _ ->
-                            disableRemoveMode() // Exit Remove Mode without deletion
-                        }
+                        .setNegativeButton(context.getString(R.string.no), null)
                         .show()
                 }
             }
         } else {
-            // Normal toggle button behavior
             val isRunning = activeTimers[category.id] == true
             holder.binding.btnToggle.apply {
                 text = if (isRunning) {
@@ -89,6 +89,7 @@ class CategoryAdapter(
             }
         }
     }
+
 
     fun updateTimes(times: Map<Int, Long>) {
         times.forEach { (id, newTime) ->
