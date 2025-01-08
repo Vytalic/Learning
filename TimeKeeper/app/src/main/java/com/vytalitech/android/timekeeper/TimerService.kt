@@ -23,8 +23,6 @@ import java.util.concurrent.atomic.AtomicLong
 
 class TimerService : Service() {
 
-    private val channelId = "TimerServiceChannel"
-
     private var categoryId: Int = -1 // Current category ID being timed
     val elapsedTime = AtomicLong(0)
 
@@ -79,9 +77,6 @@ class TimerService : Service() {
         return START_STICKY
     }
 
-
-
-
     private fun startTimer(categoryName: String) {
         if (job == null) {
             job = CoroutineScope(Dispatchers.IO).launch {
@@ -107,9 +102,6 @@ class TimerService : Service() {
         }
     }
 
-
-
-
     override fun onDestroy() {
         super.onDestroy()
         job?.cancel()
@@ -117,9 +109,6 @@ class TimerService : Service() {
         Log.d("TimerService", "Service destroyed")
         saveElapsedTimeToDatabase(categoryId, elapsedTime.get())
     }
-
-
-
 
     // Cleanup mechanism
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -139,10 +128,6 @@ class TimerService : Service() {
 
         Log.d("TimerService", "App closed. Timer stopped, changes saved, notification removed.")
     }
-
-
-
-
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun createNotificationChannel() {
@@ -174,20 +159,7 @@ class TimerService : Service() {
         manager.notify(1, notification)
     }
 
-    private fun formatTime(seconds: Long): String {
-        val hours = seconds / 3600
-        val minutes = (seconds % 3600) / 60
-        val secs = seconds % 60
-        return String.format("%02d:%02d:%02d", hours, minutes, secs)
-    }
-
-    private fun loadElapsedTimeFromDatabase(categoryId: Int): Long {
-        // Simulate database access (replace this with actual DB call)
-        Log.d("TimerService", "Loading elapsed time from database for categoryId: $categoryId")
-        return 0L // Replace with actual database query result
-    }
-
-    fun saveElapsedTimeToDatabase(categoryId: Int, elapsedTime: Long) {
+    private fun saveElapsedTimeToDatabase(categoryId: Int, elapsedTime: Long) {
         if (categoryId == -1) {
             Log.e("TimerService", "Cannot save elapsed time. Invalid categoryId: $categoryId")
             return
@@ -205,7 +177,5 @@ class TimerService : Service() {
                 Log.e("TimerService", "Error saving elapsed time to database: ${e.message}")
             }
         }
-
     }
-
 }

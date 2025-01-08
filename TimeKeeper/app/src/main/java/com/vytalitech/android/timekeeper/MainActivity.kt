@@ -9,13 +9,11 @@ import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import android.view.Menu
-import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -49,8 +47,6 @@ class MainActivity : AppCompatActivity() {
             isServiceBound = false
         }
     }
-
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,6 +83,12 @@ class MainActivity : AppCompatActivity() {
             loadCategories()
         }
 
+        // Set up cancel button click listener
+        binding.btnCancelRemoveMode.setOnClickListener {
+            adapter.disableRemoveMode()
+            exitRemoveMode()
+        }
+
         // Initialize the TimerViewModel with the factory
         val factory = TimerViewModelFactory(database)
         timerViewModel = ViewModelProvider(this, factory).get(TimerViewModel::class.java)
@@ -110,8 +112,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-
 
         // Set up the BottomNavigationView
         binding.bottomNavigationView.setOnItemSelectedListener { item ->
@@ -141,7 +141,9 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize adapter with an empty list
         adapter = CategoryAdapter(
-            mutableListOf(),
+            categories = mutableListOf(),
+            categoryTimes = timerViewModel.categoryTimes.value ?: emptyMap(),
+            activeTimers = timerViewModel.activeTimers.value ?: emptyMap(), // Provide activeTimers
             onStartClick = { category ->
                 Log.d("MainActivity", "Starting timer for category: ${category.name}")
                 timerViewModel.startTimer(category.id)
@@ -149,9 +151,19 @@ class MainActivity : AppCompatActivity() {
             onStopClick = { category ->
                 Log.d("MainActivity", "Stopping timer for category: ${category.name}")
                 timerViewModel.stopTimer(category.id)
+            },
+            onRemoveClick = { category ->
+                lifecycleScope.launch {
+                    database.categoryDao().deleteCategory(category)
+                    refreshCategories()
+                    Toast.makeText(this@MainActivity, "Removed: ${category.name}", Toast.LENGTH_SHORT).show()
+                }
             }
         )
+
+        // Set the adapter to the RecyclerView
         binding.recyclerView.adapter = adapter
+
 
         // Observe timer states
         timerViewModel.categoryTimes.observe(this) { times ->
@@ -185,7 +197,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.toolbar_menu, menu)
@@ -226,8 +237,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-
     private fun startTimerService(categoryId: Int, elapsedTime: Long) {
         Log.d("MainActivity", "startTimerService called with categoryId: $categoryId, elapsedTime: $elapsedTime")
         val categoryName = getCategoryNameById(categoryId)
@@ -261,12 +270,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-
-
-
-
-
     private fun showPopupMenu() {
         val popupMenu = PopupMenu(this, findViewById(R.id.action_menu))
         popupMenu.menuInflater.inflate(R.menu.fab_menu, popupMenu.menu)
@@ -274,7 +277,7 @@ class MainActivity : AppCompatActivity() {
         popupMenu.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_add -> handleAddCategory()
-                R.id.action_remove -> handleRemoveCategory()
+                R.id.action_remove -> activateRemoveMode()
             }
             true
         }
@@ -325,27 +328,19 @@ class MainActivity : AppCompatActivity() {
         return categoryMap[categoryId] ?: "Unknown"
     }
 
+    private fun activateRemoveMode() {
+        adapter.enableRemoveMode() // Enable remove mode in the adapter
+        enterRemoveMode()
+        //Toast.makeText(this, "Select a category to remove", Toast.LENGTH_SHORT).show()
+    }
 
-    private fun handleRemoveCategory() {
-        lifecycleScope.launch {
-            val categories = database.categoryDao().getAllCategories()
-            if (categories.isNotEmpty()) {
-                val lastCategory = categories.last()
-                database.categoryDao().deleteCategory(lastCategory)
-                refreshCategories()
-                Toast.makeText(
-                    this@MainActivity,
-                    "Removed: ${lastCategory.name}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                Toast.makeText(
-                    this@MainActivity,
-                    "No categories to delete",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
+    private fun enterRemoveMode() {
+        binding.btnCancelRemoveMode.visibility = View.VISIBLE
+    }
+
+    private fun exitRemoveMode() {
+        binding.btnCancelRemoveMode.visibility = View.GONE
+        Toast.makeText(this, "Exited remove mode", Toast.LENGTH_SHORT).show()
     }
 
     private suspend fun refreshCategories() {
@@ -366,15 +361,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showGraphFragment() {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, GraphFragment())
-            .commit()
+        Toast.makeText(this@MainActivity, "Feature coming soon!", Toast.LENGTH_SHORT).show()
+//        supportFragmentManager.beginTransaction()
+//            .replace(R.id.fragmentContainer, GraphFragment())
+//            .commit()
     }
 
     private fun showSettingsFragment() {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, SettingsFragment())
-            .commit()
+        Toast.makeText(this@MainActivity, "Feature coming soon!", Toast.LENGTH_SHORT).show()
+//        supportFragmentManager.beginTransaction()
+//            .replace(R.id.fragmentContainer, SettingsFragment())
+//            .commit()
     }
 
 }

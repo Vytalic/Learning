@@ -1,21 +1,39 @@
 package com.vytalitech.android.timekeeper
 
+import android.app.AlertDialog
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.vytalitech.android.timekeeper.databinding.ItemCategoryBinding
 import java.util.Locale
 
 class CategoryAdapter(
     private val categories: MutableList<Category>,
+    private val categoryTimes: Map<Int, Long>, // Add categoryTimes as a parameter
+    private val activeTimers: Map<Int, Boolean>,
     private val onStartClick: (Category) -> Unit,
-    private val onStopClick: (Category) -> Unit
+    private val onStopClick: (Category) -> Unit,
+    private val onRemoveClick: (Category) -> Unit
 ) : RecyclerView.Adapter<CategoryAdapter.CategoryViewHolder>() {
 
-    //private val activeTimers = mutableMapOf<Int, Boolean>()
-    private val categoryTimes = mutableMapOf<Int, Long>()
-
     class CategoryViewHolder(val binding: ItemCategoryBinding) : RecyclerView.ViewHolder(binding.root)
+
+    private val mutableCategoryTimes = categoryTimes.toMutableMap() // Create a mutable copy
+    private var isRemoveModeActive = false
+
+    fun enableRemoveMode() {
+        isRemoveModeActive = true
+        notifyItemRangeChanged(0, itemCount) // Notify the adapter of all items
+    }
+
+    fun disableRemoveMode() {
+        isRemoveModeActive = false
+        notifyItemRangeChanged(0, itemCount) // Notify the adapter of all items
+    }
+
+
+
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
         // Inflate layout using binding class
@@ -24,37 +42,86 @@ class CategoryAdapter(
     }
 
     override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
-        // Use binding object to access views directly
         val category = categories[position]
 
         // Set category name and initial time
         holder.binding.tvCategoryName.text = category.name
-        holder.binding.tvTimeTracker.text = formatTime(categoryTimes[category.id] ?: 0)
+        holder.binding.tvTimeTracker.text = formatTime(mutableCategoryTimes[category.id] ?: 0)
 
-        holder.binding.btnStart.setOnClickListener { onStartClick(category) }
-        holder.binding.btnStop.setOnClickListener { onStopClick(category) }
+        if (isRemoveModeActive) {
+            // Change button to "Remove" during Remove Mode
+            holder.binding.btnToggle.apply {
+                text = context.getString(R.string.btn_remove)
+                setBackgroundColor(context.getColor(R.color.btnRed))
+                setOnClickListener {
+                    AlertDialog.Builder(context)
+                        .setTitle("Delete Category")
+                        .setMessage("Are you sure you want to delete ${category.name}?")
+                        .setPositiveButton("Yes") { _, _ ->
+                            onRemoveClick(category)
+                            disableRemoveMode() // Exit Remove Mode after deletion
+                        }
+                        .setNegativeButton("Cancel") { _, _ ->
+                            disableRemoveMode() // Exit Remove Mode without deletion
+                        }
+                        .show()
+                }
+            }
+        } else {
+            // Normal toggle button behavior
+            val isRunning = activeTimers[category.id] == true
+            holder.binding.btnToggle.apply {
+                text = if (isRunning) {
+                    setBackgroundColor(context.getColor(R.color.btnOrange))
+                    context.getString(R.string.btn_stop)
+                } else {
+                    setBackgroundColor(context.getColor(R.color.btnGreen))
+                    context.getString(R.string.btn_start)
+                }
+
+                setOnClickListener {
+                    if (isRunning) {
+                        onStopClick(category)
+                    } else {
+                        onStartClick(category)
+                    }
+                }
+            }
+        }
     }
 
     fun updateTimes(times: Map<Int, Long>) {
-        categoryTimes.clear()
-        categoryTimes.putAll(times)
-        notifyDataSetChanged()
+        times.forEach { (id, newTime) ->
+            if (mutableCategoryTimes[id] != newTime) {
+                mutableCategoryTimes[id] = newTime
+                val position = categories.indexOfFirst { it.id == id }
+                if (position != -1) {
+                    notifyItemChanged(position, newTime) // Use payloads
+                }
+            }
+        }
     }
+
+
 
     override fun getItemCount(): Int = categories.size
 
     fun updateCategories(newCategories: List<Category>) {
+        val diffCallback = CategoryDiffCallback(categories, newCategories)
+        val diffResult = DiffUtil.calculateDiff(diffCallback)
+
         categories.clear()
         categories.addAll(newCategories)
-        notifyDataSetChanged()
+        diffResult.dispatchUpdatesTo(this) // Notify only the changed items
     }
+
 
     // Helper function: formats time in HH:mm:ss
     private fun formatTime(seconds: Long): String {
         val hours = seconds / 3600
         val minutes = (seconds % 3600) / 60
         val secs = seconds % 60
-        return String.format(Locale.ROOT, "%02d:%02d:%02d", hours, minutes, secs)
+        return String.format(Locale.ROOT, "%03d:%02d:%02d", hours, minutes, secs)
 
     }
 }

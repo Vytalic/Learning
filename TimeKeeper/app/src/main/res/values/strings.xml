@@ -15,5 +15,7 @@
     <string name="remove_category">Remove Category</string>
     <string name="fab_menu">Open actions menu</string>
     <string name="menu">Menu</string>
+    <string name="btn_remove">Remove</string>
+    <string name="cancel">Cancel</string>
 
 </resources>

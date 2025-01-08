@@ -1,5 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Timekeeper" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+    <style name="Theme.Timekeeper" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary branding color -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <!-- Darker primary color for status bar -->
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <!-- Accent color for highlights -->
+        <item name="colorAccent">@color/colorAccent</item>
+        <!-- Background color -->
+<!--        <item name="android:colorBackground">@color/colorBackground</item>-->
+<!--        &lt;!&ndash; Toolbar and surface colors &ndash;&gt;-->
+<!--        <item name="colorSurface">@color/colorSurface</item>-->
+    </style>
 </resources>
