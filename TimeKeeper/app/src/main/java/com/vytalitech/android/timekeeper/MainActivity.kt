@@ -1,6 +1,13 @@
 package com.vytalitech.android.timekeeper
 
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
@@ -24,8 +31,47 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: CategoryAdapter
     private lateinit var timerViewModel: TimerViewModel
 
+    private val categoryMap = mutableMapOf<Int, String>()
+    private var currentRunningCategoryId: Int? = null
+
+    private var isServiceBound = false
+    private var timerService: TimerService? = null
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as? TimerService.TimerBinder
+            timerService = binder?.getService()
+            isServiceBound = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            timerService = null
+            isServiceBound = false
+        }
+    }
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val savedCategoryId = savedInstanceState?.getInt("CURRENT_CATEGORY_ID", -1) ?: -1
+        val savedElapsedTime = savedInstanceState?.getLong("CURRENT_ELAPSED_TIME", 0L) ?: 0L
+
+        if (savedCategoryId != -1) {
+            currentRunningCategoryId = savedCategoryId
+            timerViewModel.updateTimerState(savedCategoryId, savedElapsedTime)
+        }
+
+        // Check and request POST_NOTIFICATIONS permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                Log.d("MainActivity", "POST_NOTIFICATIONS permission granted")
+            } else {
+                Log.e("MainActivity", "POST_NOTIFICATIONS permission not granted, requesting now")
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
 
         // Inflate layout using binding class
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -37,9 +83,33 @@ class MainActivity : AppCompatActivity() {
         // Initialize the database
         database = DatabaseProvider.getDatabase(this)
 
+        lifecycleScope.launch {
+            loadCategories()
+        }
+
         // Initialize the TimerViewModel with the factory
         val factory = TimerViewModelFactory(database)
         timerViewModel = ViewModelProvider(this, factory).get(TimerViewModel::class.java)
+
+        timerViewModel.timerEvent.observe(this) { event ->
+            event?.let {
+                if (it.isRunning) {
+                    // Check if a different timer is running
+                    if (currentRunningCategoryId != it.categoryId) {
+                        startTimerService(it.categoryId, it.elapsedTime)
+                        currentRunningCategoryId = it.categoryId
+                    } else {
+                        Log.d("MainActivity", "TimerService already running for categoryId: ${it.categoryId}")
+                    }
+                } else {
+                    // Stop the service only if the currently running timer matches
+                    if (currentRunningCategoryId == it.categoryId) {
+                        stopTimerService()
+                        currentRunningCategoryId = null
+                    }
+                }
+            }
+        }
 
 
 
@@ -72,8 +142,14 @@ class MainActivity : AppCompatActivity() {
         // Initialize adapter with an empty list
         adapter = CategoryAdapter(
             mutableListOf(),
-            onStartClick = { category -> timerViewModel.startTimer(category.id) },
-            onStopClick = { category -> timerViewModel.stopTimer(category.id) }
+            onStartClick = { category ->
+                Log.d("MainActivity", "Starting timer for category: ${category.name}")
+                timerViewModel.startTimer(category.id)
+            },
+            onStopClick = { category ->
+                Log.d("MainActivity", "Stopping timer for category: ${category.name}")
+                timerViewModel.stopTimer(category.id)
+            }
         )
         binding.recyclerView.adapter = adapter
 
@@ -91,6 +167,26 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt("CURRENT_CATEGORY_ID", currentRunningCategoryId ?: -1)
+        outState.putLong("CURRENT_ELAPSED_TIME", timerService?.elapsedTime?.get() ?: 0L)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == 1001) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d("MainActivity", "POST_NOTIFICATIONS permission granted by user")
+            } else {
+                Log.e("MainActivity", "POST_NOTIFICATIONS permission denied by user")
+                Toast.makeText(this, "Notification permission is required to display timers", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.toolbar_menu, menu)
         return true
@@ -106,6 +202,70 @@ class MainActivity : AppCompatActivity() {
             else -> super.onOptionsItemSelected(item)
         }
     }
+
+    private var isServiceRunning = false
+
+    override fun onStop() {
+        super.onStop()
+
+        // Unbind the service
+        if (isServiceBound) {
+            unbindService(serviceConnection)
+            isServiceBound = false
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        // Simulate "Stop Timer" when app is closed
+        currentRunningCategoryId?.let { categoryId ->
+            timerViewModel.stopTimer(categoryId)
+            stopTimerService()
+            Log.d("MainActivity", "App closed. Timer stopped for categoryId: $categoryId.")
+        }
+    }
+
+
+
+    private fun startTimerService(categoryId: Int, elapsedTime: Long) {
+        Log.d("MainActivity", "startTimerService called with categoryId: $categoryId, elapsedTime: $elapsedTime")
+        val categoryName = getCategoryNameById(categoryId)
+        if (categoryName == "Unknown") {
+            Log.e("MainActivity", "Category name not found for categoryId: $categoryId")
+            return
+        }
+
+
+        if (!isServiceRunning) {
+            val intent = Intent(this, TimerService::class.java).apply {
+                putExtra("CATEGORY_ID", categoryId)
+                putExtra("CATEGORY_NAME", categoryName)
+                putExtra("ELAPSED_TIME", elapsedTime)
+            }
+            Log.d("MainActivity", "Starting TimerService with categoryName: $categoryName, elapsedTime: $elapsedTime")
+            startService(intent)
+            isServiceRunning = true
+        } else {
+            Log.d("MainActivity", "TimerService already running for categoryId: $categoryId")
+        }
+    }
+
+    private fun stopTimerService() {
+        if (isServiceRunning) {
+            Log.d("MainActivity", "Stopping TimerService")
+            stopService(Intent(this, TimerService::class.java))
+            isServiceRunning = false
+        } else {
+            Log.d("MainActivity", "TimerService is not running.")
+        }
+    }
+
+
+
+
+
+
 
     private fun showPopupMenu() {
         val popupMenu = PopupMenu(this, findViewById(R.id.action_menu))
@@ -153,6 +313,18 @@ class MainActivity : AppCompatActivity() {
         // Show the dialog
         builder.show()
     }
+
+    private suspend fun loadCategories() {
+        val categories = database.categoryDao().getAllCategories()
+        categoryMap.clear()
+        categoryMap.putAll(categories.associate { it.id to it.name })
+        Log.d("MainActivity", "Preloaded categories: $categoryMap")
+    }
+
+    private fun getCategoryNameById(categoryId: Int): String {
+        return categoryMap[categoryId] ?: "Unknown"
+    }
+
 
     private fun handleRemoveCategory() {
         lifecycleScope.launch {
