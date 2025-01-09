@@ -11,5 +11,7 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="btnGrey">#FF969696</color>
+    <color name="legend_text_color">#FFFFFF</color>
+    <color name="chart_background_color">#000000</color>
 
 </resources>

@@ -10,13 +10,11 @@ import android.os.IBinder
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
 import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.vytalitech.android.timekeeper.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -79,23 +77,25 @@ class MainActivity : AppCompatActivity() {
         // Initialize the database
         database = DatabaseProvider.getDatabase(this)
 
-        lifecycleScope.launch {
-            loadCategories()
-        }
-
-        // Set up cancel button click listener
-        binding.btnCancelRemoveMode.setOnClickListener {
-            adapter.disableRemoveMode()
-            exitRemoveMode()
-        }
-
-        // Initialize the TimerViewModel with the factory
-//        val factory = TimerViewModelFactory(database)
-//        timerViewModel = ViewModelProvider(this, factory).get(TimerViewModel::class.java)
-        // Initialize the TimerViewModel with the factory
+        // Initialize TimerViewModel
         val factory = TimerViewModelFactory(database)
         timerViewModel = ViewModelProvider(this, factory)[TimerViewModel::class.java]
 
+
+        // Initialize adapter with default values
+        adapter = CategoryAdapter(
+            categories = mutableListOf(), // An empty mutable list for categories
+            categoryTimes = emptyMap(),   // An empty map for category times
+            activeTimers = emptyMap(),    // An empty map for active timers
+            onStartClick = { _ -> },      // A no-op lambda for onStartClick
+            onStopClick = { _ -> },       // A no-op lambda for onStopClick
+            onRemoveClick = { _ -> },     // A no-op lambda for onRemoveClick
+            onRemoveModeUpdate = { _ -> } // A no-op lambda for onRemoveModeUpdate
+        )
+
+        lifecycleScope.launch {
+            loadCategories()
+        }
 
         timerViewModel.timerEvent.observe(this) { event ->
             event?.let {
@@ -141,56 +141,6 @@ class MainActivity : AppCompatActivity() {
             showHomeFragment()
         }
 
-        binding.recyclerView.layoutManager = LinearLayoutManager(this)
-
-        // Initialize adapter with an empty list
-        adapter = CategoryAdapter(
-            categories = mutableListOf(),
-            categoryTimes = timerViewModel.categoryTimes.value ?: emptyMap(),
-            activeTimers = timerViewModel.activeTimers.value ?: emptyMap(), // Provide activeTimers
-            onStartClick = { category ->
-                Log.d("MainActivity", "Starting timer for category: ${category.name}")
-                timerViewModel.startTimer(category.id)
-            },
-            onStopClick = { category ->
-                Log.d("MainActivity", "Stopping timer for category: ${category.name}")
-                timerViewModel.stopTimer(category.id)
-            },
-            onRemoveClick = { category ->
-                lifecycleScope.launch {
-                    database.categoryDao().deleteCategory(category)
-                    refreshCategories()
-//                    Toast.makeText(
-//                        this@MainActivity,
-//                        "Removed: ${category.name}",
-//                        Toast.LENGTH_SHORT
-//                    ).show()
-
-                    // Update button state
-                    if (adapter.itemCount == 0) {
-                        adapter.disableRemoveMode()
-                    } else {
-                        binding.btnCancelRemoveMode.text = getString(R.string.btn_finish)
-                        binding.btnCancelRemoveMode.setBackgroundColor(getColor(R.color.btnGreen))
-                    }
-                }
-            },
-            onRemoveModeUpdate = { isActive ->
-                binding.btnCancelRemoveMode.apply {
-                    text = if (isActive) {
-                        context.getString(R.string.btn_cancel)
-                    } else {
-                        context.getString(R.string.btn_finish)
-                    }
-                    visibility = View.VISIBLE
-                }
-            }
-        )
-
-        // Set the adapter to the RecyclerView
-        binding.recyclerView.adapter = adapter
-
-
         // Observe timer states
         timerViewModel.categoryTimes.observe(this) { times ->
             adapter.updateTimes(times)
@@ -204,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
+
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -241,7 +192,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var isServiceRunning = false
-    private var isRemoveModeActive = false
+
 
     override fun onStop() {
         super.onStop()
@@ -304,7 +255,7 @@ class MainActivity : AppCompatActivity() {
         popupMenu.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_add -> handleAddCategory()
-                R.id.action_remove -> activateRemoveMode()
+                R.id.action_remove -> homeFragment?.activateRemoveMode()
             }
             true
         }
@@ -332,7 +283,7 @@ class MainActivity : AppCompatActivity() {
                 // Insert category in coroutine after confirmation
                 lifecycleScope.launch {
                     database.categoryDao().insertCategory(newCategory)
-                    refreshCategories()
+                    timerViewModel.refreshCategories() // Notify ViewModel to refresh categories
                 }
             } else {
                 Toast.makeText(this, "Category name cannot be empty", Toast.LENGTH_SHORT).show()
@@ -355,21 +306,7 @@ class MainActivity : AppCompatActivity() {
         return categoryMap[categoryId] ?: "Unknown"
     }
 
-    private fun activateRemoveMode() {
-        adapter.enableRemoveMode() // Enable remove mode in the adapter
-        enterRemoveMode()
-        //Toast.makeText(this, "Select a category to remove", Toast.LENGTH_SHORT).show()
-    }
 
-    private fun enterRemoveMode() {
-        binding.btnCancelRemoveMode.visibility = View.VISIBLE
-    }
-
-    private fun exitRemoveMode() {
-        isRemoveModeActive = false
-        adapter.disableRemoveMode() // Exit remove mode in adapter
-        binding.btnCancelRemoveMode.visibility = View.GONE
-    }
 
     private suspend fun refreshCategories() {
         val categories = database.categoryDao().getAllCategories()
@@ -381,18 +318,48 @@ class MainActivity : AppCompatActivity() {
         val timesMap = categories.associate { it.id to it.totalTime }
         timerViewModel.categoryTimes.value = timesMap.toMutableMap()
     }
+    private var homeFragment: HomeFragment? = null
+
+//    private fun showHomeFragment() {
+//        val fragment = HomeFragment()
+//        homeFragment = fragment // Keep a reference to the fragment
+//        supportFragmentManager.beginTransaction()
+//            .replace(R.id.fragmentContainer, fragment)
+//            .commit()
+//    }
 
     private fun showHomeFragment() {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragmentContainer, HomeFragment())
-            .commit()
+        val transaction = supportFragmentManager.beginTransaction()
+        val fragment = supportFragmentManager.findFragmentByTag("HomeFragment")
+        if (fragment == null) {
+            val homeFragment = HomeFragment()
+            transaction.add(R.id.fragmentContainer, homeFragment, "HomeFragment")
+        }
+        supportFragmentManager.fragments.forEach {
+            if (it is HomeFragment) {
+                transaction.show(it)
+            } else {
+                transaction.hide(it)
+            }
+        }
+        transaction.commit()
     }
 
     private fun showGraphFragment() {
-        Toast.makeText(this@MainActivity, "Feature coming soon!", Toast.LENGTH_SHORT).show()
-//        supportFragmentManager.beginTransaction()
-//            .replace(R.id.fragmentContainer, GraphFragment())
-//            .commit()
+        val transaction = supportFragmentManager.beginTransaction()
+        val fragment = supportFragmentManager.findFragmentByTag("GraphFragment")
+        if (fragment == null) {
+            val graphFragment = GraphFragment()
+            transaction.add(R.id.fragmentContainer, graphFragment, "GraphFragment")
+        }
+        supportFragmentManager.fragments.forEach {
+            if (it is GraphFragment) {
+                transaction.show(it)
+            } else {
+                transaction.hide(it)
+            }
+        }
+        transaction.commit()
     }
 
     private fun showSettingsFragment() {

@@ -1,28 +1,27 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
-    <Button
-        android:id="@+id/btnSelectStartDate"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Select Start Date" />
+    <!-- Pie Chart with fixed height -->
+    <com.github.mikephil.charting.charts.PieChart
+        android:id="@+id/pieChart"
+        android:layout_width="match_parent"
+        android:layout_height="350dp"
+        android:layout_marginBottom="1dp" />
 
-    <Button
-        android:id="@+id/btnSelectEndDate"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Select End Date"
-        android:layout_marginTop="8dp" />
-
-    <com.github.mikephil.charting.charts.LineChart
-        android:id="@+id/lineChart"
+    <!-- Scrollable Legend Container -->
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="16dp" />
+        android:padding="8dp">
+
+        <LinearLayout
+            android:id="@+id/customLegend"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
 </LinearLayout>
