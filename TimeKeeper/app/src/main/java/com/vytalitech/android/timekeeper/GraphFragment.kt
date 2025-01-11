@@ -119,7 +119,6 @@ class GraphFragment : Fragment() {
                 String.format(Locale.US, "%.1f", percentage)
             )
 
-
             legendContainer?.addView(legendItem)
         }
     }
