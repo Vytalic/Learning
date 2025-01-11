@@ -22,5 +22,7 @@
     <string name="delete_category_title">Delete Category</string>
     <string name="delete_category_message">Are you sure you want to delete %1$s?</string>
     <string name="btn_finish">Finish</string>
+    <string name="reorder">Reorder</string>
+    <string name="btn_confirm_reorder">Save</string>
 
 </resources>

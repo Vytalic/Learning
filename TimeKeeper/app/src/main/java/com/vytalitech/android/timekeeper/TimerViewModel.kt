@@ -1,149 +1,137 @@
 package com.vytalitech.android.timekeeper
 
+import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.util.Log
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-data class TimerEvent(val categoryId: Int, val elapsedTime: Long, val isRunning: Boolean)
 
-class TimerViewModel(private val database: AppDatabase) : ViewModel() {
-    val timerEvent = MutableLiveData<TimerEvent?>()
-    private val _categoryList = MutableLiveData<List<Category>>()
-    val categoryList: MutableLiveData<List<Category>> get() = _categoryList
-    val categories = MutableLiveData<List<Category>>()
+class TimerViewModel(application: Application, private val database: AppDatabase) : AndroidViewModel(application) {
+
+    private val categoryDao = DatabaseProvider.getDatabase(application).categoryDao()
+    val categoryList: LiveData<List<Category>> = categoryDao.getAllCategories()
 
 
-    fun refreshCategories() {
-        viewModelScope.launch {
-            val updatedCategories = database.categoryDao().getAllCategories()
-            Log.d("TimerViewModel", "Categories refreshed: $updatedCategories")
-            categories.postValue(updatedCategories)
-            categoryList.postValue(updatedCategories) // Notify observers
+    // Used new
+    private val _categoryTimes = MutableLiveData<MutableMap<Int, Long>>(mutableMapOf())
+    val categoryTimes: LiveData<MutableMap<Int, Long>> get() = _categoryTimes
+
+    private val _activeTimers = MutableLiveData<Map<Int, Boolean>>(mutableMapOf())
+    val activeTimers: LiveData<Map<Int, Boolean>> get() = _activeTimers
+
+    private var timerJob: Job? = null
+    val isRemoveMode = MutableLiveData<Boolean>().apply { value = false }
+
+
+
+    // LiveData for observing categories
+    //val categoryList: LiveData<List<Category>> = categoryDao.getAllCategories()
+
+
+    fun startUpdatingTimers() {
+        // Check if a timer job is already active
+        if (timerJob?.isActive == true) {
+            return // Do nothing if a timer job is already running
         }
-    }
 
-    init {
-        refreshCategories()
-        // Load initial data from the database
-        viewModelScope.launch {
-            loadInitialData()
-            refreshCategoryList()
-        }
-    }
-
-    val activeTimers = MutableLiveData<MutableMap<Int, Boolean>>().apply {
-        value = mutableMapOf()
-    }
-    val categoryTimes = MutableLiveData<MutableMap<Int, Long>>().apply {
-        value = mutableMapOf()
-    }
-
-    private suspend fun refreshCategoryList() {
-        val categories = database.categoryDao().getAllCategories()
-        _categoryList.postValue(categories)
-    }
-
-    private suspend fun loadInitialData() {
-        val categories = database.categoryDao().getAllCategories()
-        val timesMap = categories.associate { it.id to it.totalTime }.toMutableMap()
-        categoryTimes.postValue(timesMap)
-    }
-
-    fun reEmitCategoryTimes() {
-        categoryTimes.value = categoryTimes.value
-    }
-
-//    fun startTimer(categoryId: Int) {
-//        if (activeTimers.value?.get(categoryId) == true) return
-//
-//        activeTimers.value = activeTimers.value?.apply { this[categoryId] = true }
-//        timerEvent.value = TimerEvent(categoryId, categoryTimes.value?.get(categoryId) ?: 0L, true)
-//
-//        viewModelScope.launch {
-//            while (activeTimers.value?.get(categoryId) == true) {
-//                delay(1000)
-//                categoryTimes.value = categoryTimes.value?.apply {
-//                    this[categoryId] = (this[categoryId] ?: 0) + 1
-//                }
-//            }
-//        }
-//    }
-
-    fun startTimer(categoryId: Int) {
-        if (activeTimers.value?.get(categoryId) == true) return
-
-        activeTimers.value = activeTimers.value?.apply { this[categoryId] = true }
-        timerEvent.value = TimerEvent(categoryId, categoryTimes.value?.get(categoryId) ?: 0L, true)
-
-        viewModelScope.launch {
-            while (activeTimers.value?.get(categoryId) == true) {
-                delay(1000)
-                categoryTimes.value = categoryTimes.value?.apply {
-                    this[categoryId] = (this[categoryId] ?: 0) + 1
+        timerJob = viewModelScope.launch {
+            while (isActive) {
+                delay(1000) // Update every second
+                val updatedTimes = _categoryTimes.value?.toMutableMap() ?: mutableMapOf()
+                _activeTimers.value?.forEach { (categoryId, isRunning) ->
+                    if (isRunning) {
+                        updatedTimes[categoryId] = (updatedTimes[categoryId] ?: 0) + 1
+                    }
                 }
+                _categoryTimes.postValue(updatedTimes)
             }
-            refreshCategories() // Emit updated category data
         }
     }
 
-//    fun stopTimer(categoryId: Int) {
-//        if (activeTimers.value?.get(categoryId) == false) return
-//
-//        // Update in-memory state
-//        activeTimers.value = activeTimers.value?.apply { this[categoryId] = false }
-//        val elapsedTime = categoryTimes.value?.get(categoryId) ?: 0L
-//        timerEvent.value = TimerEvent(categoryId, elapsedTime, false)
-//
-//        // Save the elapsed time to the database
-//        viewModelScope.launch {
-//            val category = database.categoryDao().getCategoryById(categoryId)
-//            if (category != null) {
-//                category.totalTime = elapsedTime
-//                database.categoryDao().updateCategory(category)
-//                // Log success for debugging
-//                Log.d("TimerViewModel", "Elapsed time saved to database for categoryId: $categoryId, elapsedTime: $elapsedTime")
-//            } else {
-//                // Log error for debugging
-//                Log.e("TimerViewModel", "No category found for categoryId: $categoryId")
-//            }
-//        }
+    fun loadInitialTimes(categories: List<Category>) {
+        val currentActiveTimers = _activeTimers.value ?: emptyMap()
+        val updatedTimes = _categoryTimes.value?.toMutableMap() ?: mutableMapOf()
+
+        categories.forEach { category ->
+            if (currentActiveTimers[category.id] != true) {
+                // Initialize only if the timer is not running
+                updatedTimes[category.id] = category.totalTime
+            }
+        }
+
+        _categoryTimes.value = updatedTimes
+    }
+
+
+//    fun stopUpdatingTimers() {
+//        timerJob?.cancel()
+//        timerJob = null
 //    }
 
-    fun stopTimer(categoryId: Int) {
-        if (activeTimers.value?.get(categoryId) == false) return
+    fun startTimer(categoryId: Int, categoryName: String, context: Context) {
+        _activeTimers.value = _activeTimers.value?.toMutableMap()?.apply {
+            if (this[categoryId] == true) {
+                // Timer is already running for this category; do nothing
+                Log.d("TimerViewModel", "Timer already running for category $categoryId")
+                return
+            }
+            this[categoryId] = true
+        }
 
-        activeTimers.value = activeTimers.value?.apply { this[categoryId] = false }
-        timerEvent.value = TimerEvent(categoryId, categoryTimes.value?.get(categoryId) ?: 0L, false)
-
-        // Persist timer state to the database
+        val startTime = System.currentTimeMillis()
         viewModelScope.launch {
             val category = database.categoryDao().getCategoryById(categoryId)
             if (category != null) {
-                category.totalTime = categoryTimes.value?.get(categoryId) ?: 0L
-                database.categoryDao().updateCategory(category)
-                refreshCategories() // Emit updated category data
+                val updatedCategory = category.copy(startTime = startTime)
+                database.categoryDao().updateCategory(updatedCategory)
             }
         }
+
+
+        _activeTimers.value = _activeTimers.value // Trigger LiveData observer
+        Log.d("TimerViewModel", "Started timer for category $categoryId")
+        TimerService.startService(context, categoryId, categoryName)
     }
 
-    fun loadTimerData() {
+
+    fun stopTimer(categoryId: Int, context: Context) {
+        if (_activeTimers.value?.get(categoryId) == false) return
+
+        // Mark the timer as inactive
+        _activeTimers.value = _activeTimers.value?.toMutableMap()?.apply {
+            this[categoryId] = false
+        }
+
+        // Trigger LiveData observer
+        _activeTimers.value = _activeTimers.value
+
+        // Save the current elapsed time to the database
         viewModelScope.launch {
-            val categories = database.categoryDao().getAllCategories()
-            val timesMap = categories.associate { it.id to it.totalTime }
-            categoryTimes.postValue(timesMap.toMutableMap())
+            val category = database.categoryDao().getCategoryById(categoryId)
+            if (category?.startTime != null) {
+                val elapsedTime = (System.currentTimeMillis() - category.startTime) / 1000L
+
+                val updatedCategory = category.copy(
+                    totalTime = category.totalTime + elapsedTime,
+                    startTime = null // Clear the start time
+                )
+                database.categoryDao().updateCategory(updatedCategory)
+            } else {
+                Log.w("TimerViewModel", "No start time found for category $categoryId")
+            }
         }
+
+        // Stop the TimerService
+        Log.d("TimerViewModel", "Stopped timer for category $categoryId")
+        val intent = Intent(context, TimerService::class.java)
+        context.stopService(intent)
     }
-
-
-
-    fun updateTimerState(categoryId: Int, elapsedTime: Long) {
-        categoryTimes.value = categoryTimes.value?.apply {
-            this[categoryId] = elapsedTime
-        }
-    }
-
-
 }

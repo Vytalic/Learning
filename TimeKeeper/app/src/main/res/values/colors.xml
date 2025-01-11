@@ -13,5 +13,9 @@
     <color name="btnGrey">#FF969696</color>
     <color name="legend_text_color">#FFFFFF</color>
     <color name="chart_background_color">#000000</color>
+    <color name="normalText">#FFFFFF</color>
+    <color name="invertedText">#000000</color>
+    <color name="normalBackground">#151515</color>
+    <color name="invertedBackground">#eaeaea</color>
 
 </resources>

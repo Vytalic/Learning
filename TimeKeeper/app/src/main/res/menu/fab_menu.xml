@@ -8,4 +8,9 @@
         android:id="@+id/action_remove"
         android:title="@string/remove_category"
         android:icon="@drawable/ic_remove" />
+
+    <item
+        android:id="@+id/action_reorder"
+        android:title="@string/reorder"
+        android:icon="@drawable/ic_move"/>
 </menu>

@@ -1,181 +1,105 @@
 package com.vytalitech.android.timekeeper
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
-import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicLong
+import java.util.Locale
 
 
 class TimerService : Service() {
+    private val notificationManager by lazy { getSystemService(NotificationManager::class.java) }
+    private val timerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val activeTimers = mutableMapOf<Int, Long>() // Category ID -> Elapsed Time
 
-    private var categoryId: Int = -1 // Current category ID being timed
-    val elapsedTime = AtomicLong(0)
+    companion object {
+        const val CHANNEL_ID = "timer_channel"
 
-    private var job: Job? = null // Reference to the coroutine running the timer
-
-    // Reference to your database
-    private lateinit var database: AppDatabase
-
-    // Binder to provide service instance to the client
-    inner class TimerBinder : Binder() {
-        fun getService(): TimerService = this@TimerService
+        fun startService(context: Context, categoryId: Int, categoryName: String) {
+            val intent = Intent(context, TimerService::class.java).apply {
+                putExtra("CATEGORY_ID", categoryId)
+                putExtra("CATEGORY_NAME", categoryName)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
     }
 
-    private val binder = TimerBinder()
-
-    override fun onBind(intent: Intent?): IBinder {
-        return binder
-    }
-
-
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
         super.onCreate()
-        database = DatabaseProvider.getDatabase(applicationContext) // Initialize the database
         createNotificationChannel()
-        Log.d("TimerService", "Service created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        categoryId = intent?.getIntExtra("CATEGORY_ID", -1) ?: -1
-        val categoryName = intent?.getStringExtra("CATEGORY_NAME") ?: "Timer"
-        val initialElapsedTime = intent?.getLongExtra("ELAPSED_TIME", 0L) ?: 0L
+        val categoryId = intent?.getIntExtra("CATEGORY_ID", -1) ?: -1
+        val categoryName = intent?.getStringExtra("CATEGORY_NAME") ?: "Unknown"
 
-        if (categoryId == -1) {
-            Log.e("TimerService", "Invalid category ID")
-            stopSelf()
-            return START_NOT_STICKY
+        if (categoryId != -1 && !activeTimers.containsKey(categoryId)) {
+            startTimer(categoryId, categoryName)
         }
-
-        elapsedTime.set(initialElapsedTime) // Initialize elapsed time from intent
-
-        Log.d("TimerService", "Service started for categoryId: $categoryId with elapsed time: ${elapsedTime.get()}")
-
-        startTimer(categoryName)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(1, buildNotification(categoryName, elapsedTime.get()), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(1, buildNotification(categoryName, elapsedTime.get()))
-        }
-
         return START_STICKY
     }
 
-    private fun startTimer(categoryName: String) {
-        if (job == null) {
-            job = CoroutineScope(Dispatchers.IO).launch {
-                var syncCounter = 0
-                while (true) {
-                    delay(1000)
-                    elapsedTime.incrementAndGet()
-
-                    if (NotificationListener.isNotificationPanelVisible) {
-                        updateNotification(categoryName, elapsedTime.get())
-                    }
-
-                    // Save to database every 30 seconds
-                    syncCounter++
-                    if (syncCounter >= 30) {
-                        saveElapsedTimeToDatabase(categoryId, elapsedTime.get())
-                        syncCounter = 0
-                    }
-                }
-            }
-        } else {
-            Log.d("TimerService", "Timer already running for categoryId: $categoryId")
-        }
-    }
-
     override fun onDestroy() {
+        timerScope.cancel()
         super.onDestroy()
-        job?.cancel()
-        job = null
-        Log.d("TimerService", "Service destroyed")
-        saveElapsedTimeToDatabase(categoryId, elapsedTime.get())
     }
 
-    // Cleanup mechanism
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
+    override fun onBind(intent: Intent?): IBinder? = null
 
-        Log.d("TimerService", "onTaskRemoved called. Saving changes and stopping timer.")
+    private fun startTimer(categoryId: Int, categoryName: String) {
+        activeTimers[categoryId] = 0L
 
-        if (categoryId != -1) {
-            saveElapsedTimeToDatabase(categoryId, elapsedTime.get())
-        } else {
-            Log.e("TimerService", "Cannot save elapsed time. Invalid categoryId: $categoryId")
-        }
-
-        job?.cancel()
-        stopForeground(true)
-        stopSelf()
-
-        Log.d("TimerService", "App closed. Timer stopped, changes saved, notification removed.")
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun createNotificationChannel() {
-        val channelId = "TimerServiceChannel"
-        val channelName = "Timer Service Channel"
-        val serviceChannel = NotificationChannel(
-            channelId,
-            channelName,
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(serviceChannel)
-    }
-
-
-    private fun buildNotification(categoryName: String, elapsedTime: Long): Notification {
-        return NotificationCompat.Builder(this, "TimerServiceChannel")
-            .setContentTitle("Task Timer: $categoryName")
-            .setSmallIcon(android.R.drawable.ic_menu_recent_history)
-            .setOngoing(true)
-            .setWhen(System.currentTimeMillis() - elapsedTime * 1000) // Automatically adjusts chronometer
-            .setUsesChronometer(true) // Dynamically shows elapsed time
-            .build()
-    }
-
-    private fun updateNotification(categoryName: String, elapsedTime: Long) {
-        val notification = buildNotification(categoryName, elapsedTime)
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(1, notification)
-    }
-
-    private fun saveElapsedTimeToDatabase(categoryId: Int, elapsedTime: Long) {
-        if (categoryId == -1) {
-            Log.e("TimerService", "Cannot save elapsed time. Invalid categoryId: $categoryId")
-            return
-        }
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val category = database.categoryDao().getCategoryById(categoryId)
-                category?.let {
-                    it.totalTime = elapsedTime
-                    database.categoryDao().updateCategory(it)
-                    Log.d("TimerService", "Database update successful for categoryId: $categoryId")
-                } ?: Log.e("TimerService", "No category found for categoryId: $categoryId")
-            } catch (e: Exception) {
-                Log.e("TimerService", "Error saving elapsed time to database: ${e.message}")
+        timerScope.launch {
+            while (true) {
+                delay(1000)
+                activeTimers[categoryId] = (activeTimers[categoryId] ?: 0L) + 1
+                updateNotification(categoryId, categoryName)
             }
         }
+    }
+
+    private fun updateNotification(categoryId: Int, categoryName: String) {
+        val elapsedSeconds = activeTimers[categoryId] ?: 0L
+        val formattedTime = formatTime(elapsedSeconds)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Timer Running")
+            .setContentText("$categoryName: $formattedTime")
+            .setSmallIcon(R.drawable.ic_time) // Replace with your app's timer icon
+            .setOngoing(true)
+            .build()
+
+        startForeground(categoryId, notification)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Timer Notifications",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Notifications for active timers"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun formatTime(seconds: Long): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, secs)
     }
 }

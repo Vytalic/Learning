@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Category::class], version = 2, exportSchema = false)
+@Database(entities = [Category::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
 }
@@ -20,6 +20,20 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+// New migration from version 2 to version 3 to add the 'startTime' column
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE categories ADD COLUMN startTime INTEGER DEFAULT NULL")
+    }
+}
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE categories ADD COLUMN `order` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+
 object DatabaseProvider {
     private var INSTANCE: AppDatabase? = null
 
@@ -29,7 +43,7 @@ object DatabaseProvider {
                 context.applicationContext,
                 AppDatabase::class.java,
                 "app_database"
-            ).addMigrations(MIGRATION_1_2).build()
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
             INSTANCE = instance
             instance
         }

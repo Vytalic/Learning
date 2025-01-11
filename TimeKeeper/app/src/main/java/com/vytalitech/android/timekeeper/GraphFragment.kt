@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.charts.PieChart
@@ -44,17 +43,15 @@ class GraphFragment : Fragment() {
         // Initialize ViewModel
         viewModel = ViewModelProvider(requireActivity())[TimerViewModel::class.java]
 
-        // Observe changes to categories and update UI
-        viewModel.categoryList.observe(viewLifecycleOwner, Observer {
+        // Observe changes to categories and update the pie chart
+        viewModel.categoryList.observe(viewLifecycleOwner) { categories ->
             lifecycleScope.launch {
-                displayCategoryData(it)
-                pieChart.invalidate()
+                displayCategoryData(categories) // Pass the List<Category> to displayCategoryData
             }
-        })
+        }
     }
 
-    private suspend fun displayCategoryData(categories: List<Category>) {
-        val categories = database.categoryDao().getAllCategories()
+    private fun displayCategoryData(categories: List<Category>) {
         val totalTime = categories.sumOf { it.totalTime }
 
         val entries = categories.map { category ->
@@ -81,6 +78,7 @@ class GraphFragment : Fragment() {
 
         pieChart.invalidate()
     }
+
 
     private fun buildCustomLegend(categories: List<Category>, colors: List<Int>, totalTime: Long) {
         val legendContainer = view?.findViewById<LinearLayout>(R.id.customLegend)

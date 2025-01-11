@@ -8,5 +8,7 @@ data class Category(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     var totalTime: Long = 0,
-    val date: String
+    val date: String,
+    val startTime: Long?,
+    var order: Int
 )

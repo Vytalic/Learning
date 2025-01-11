@@ -7,8 +7,9 @@
         <!-- Accent color for highlights -->
         <item name="colorAccent">@color/colorAccent</item>
         <!-- Background color -->
-<!--        <item name="android:colorBackground">@color/colorBackground</item>-->
+        <item name="android:colorBackground">@color/normalBackground</item>-->
 <!--        &lt;!&ndash; Toolbar and surface colors &ndash;&gt;-->
 <!--        <item name="colorSurface">@color/colorSurface</item>-->
     </style>
+
 </resources>
