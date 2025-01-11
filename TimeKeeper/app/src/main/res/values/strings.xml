@@ -24,5 +24,7 @@
     <string name="btn_finish">Finish</string>
     <string name="reorder">Reorder</string>
     <string name="btn_confirm_reorder">Save</string>
+    <string name="legend_label_text">%1$s: %2$s%%</string>
+
 
 </resources>

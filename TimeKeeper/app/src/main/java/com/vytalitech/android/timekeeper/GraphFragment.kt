@@ -15,6 +15,7 @@ import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class GraphFragment : Fragment() {
 
@@ -54,54 +55,70 @@ class GraphFragment : Fragment() {
     private fun displayCategoryData(categories: List<Category>) {
         val totalTime = categories.sumOf { it.totalTime }
 
-        val entries = categories.map { category ->
+        // Sort categories by total time in descending order
+        val sortedCategories = categories.sortedByDescending { it.totalTime }
+
+        val entries = sortedCategories.map { category ->
             PieEntry(category.totalTime.toFloat(), category.name)
         }
 
+        val colors = getCustomColors()
+
+        // Map categories to colors
+        val categoryColors = sortedCategories.mapIndexed { index, category ->
+            category to colors[index % colors.size]
+        }.toMap()
+
         val dataSet = PieDataSet(entries, "Category Time Distribution")
-        dataSet.colors = getCustomColors() // Use custom colors
+        dataSet.colors = sortedCategories.map { categoryColors[it] ?: Color.BLACK }
         dataSet.valueTextSize = 14f
-        dataSet.valueTextColor = Color.WHITE
+        dataSet.valueTextColor = Color.BLACK
 
         val data = PieData(dataSet)
+
+        // Set a custom ValueFormatter for the PieData to remove decimals
+        data.setValueFormatter(object : com.github.mikephil.charting.formatter.ValueFormatter() {
+            override fun getFormattedValue(value: Float): String {
+                return value.toInt().toString() // Format as integer
+            }
+        })
         pieChart.data = data
         pieChart.description.isEnabled = false
         pieChart.setUsePercentValues(true)
         pieChart.holeRadius = 0f
         pieChart.transparentCircleRadius = 0f
-
-        // Disable the default legend
+        pieChart.setEntryLabelColor(Color.BLACK)
         pieChart.legend.isEnabled = false
 
-        // Pass totalTime to the custom legend builder
-        buildCustomLegend(categories, dataSet.colors, totalTime)
+        buildCustomLegend(sortedCategories, categoryColors, totalTime)
 
         pieChart.invalidate()
     }
 
 
-    private fun buildCustomLegend(categories: List<Category>, colors: List<Int>, totalTime: Long) {
+    private fun buildCustomLegend(
+        categories: List<Category>,
+        categoryColors: Map<Category, Int>,
+        totalTime: Long
+    ) {
         val legendContainer = view?.findViewById<LinearLayout>(R.id.customLegend)
-        legendContainer?.removeAllViews() // Clear any existing views
+        legendContainer?.removeAllViews()
 
-        // Calculate and sort categories by percentage in descending order
-        val sortedCategories = categories.map { category ->
+        categories.forEach { category ->
             val percentage = if (totalTime > 0) (category.totalTime * 100.0 / totalTime) else 0.0
-            Pair(category, percentage)
-        }.sortedByDescending { it.second }
-
-        sortedCategories.forEachIndexed { index, (category, percentage) ->
             val legendItem = LayoutInflater.from(requireContext())
                 .inflate(R.layout.legend_item, legendContainer, false)
 
-            // Set the color indicator, cycling through colors if needed
             val colorView = legendItem.findViewById<View>(R.id.legendColor)
-            val colorIndex = index % colors.size // Use modulo to cycle through colors
-            colorView.setBackgroundColor(colors[colorIndex])
+            colorView.setBackgroundColor(categoryColors[category] ?: Color.BLACK)
 
-            // Set the category name and percentage
             val label = legendItem.findViewById<TextView>(R.id.legendLabel)
-            label.text = "${category.name}: ${String.format("%.1f", percentage)}%"
+            label.text = getString(
+                R.string.legend_label_text,
+                category.name,
+                String.format(Locale.US, "%.1f", percentage)
+            )
+
 
             legendContainer?.addView(legendItem)
         }
