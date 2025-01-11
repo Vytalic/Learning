@@ -40,6 +40,16 @@ class TimerService : Service() {
         createNotificationChannel()
     }
 
+
+
+    private fun stopAllNotifications() {
+        activeTimers.keys.forEach { categoryId ->
+            notificationManager.cancel(categoryId) // Cancel notifications by their ID
+        }
+        activeTimers.clear() // Clear the activeTimers map to avoid holding references
+    }
+
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val categoryId = intent?.getIntExtra("CATEGORY_ID", -1) ?: -1
         val categoryName = intent?.getStringExtra("CATEGORY_NAME") ?: "Unknown"
@@ -51,14 +61,24 @@ class TimerService : Service() {
     }
 
     override fun onDestroy() {
+        stopAllNotifications()
         timerScope.cancel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf() // Stop the service when the app is removed from recent apps
+        super.onTaskRemoved(rootIntent)
+    }
+
+
     private fun startTimer(categoryId: Int, categoryName: String) {
         activeTimers[categoryId] = 0L
+
+        // Immediately show the notification
+        updateNotification(categoryId, categoryName)
 
         timerScope.launch {
             while (true) {
@@ -77,6 +97,7 @@ class TimerService : Service() {
             .setContentTitle("Timer Running")
             .setContentText("$categoryName: $formattedTime")
             .setSmallIcon(R.drawable.ic_time) // Replace with your app's timer icon
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
             .build()
 

@@ -1,5 +1,7 @@
 package com.vytalitech.android.timekeeper
 
+import android.app.NotificationManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -29,10 +31,13 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         saveAllRunningTimers()
+
+
     }
 
     private fun saveAllRunningTimers() {
         val activeTimers = timerViewModel.activeTimers.value ?: return
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         lifecycleScope.launch {
             activeTimers.forEach { (categoryId, isRunning) ->
@@ -51,6 +56,9 @@ class MainActivity : AppCompatActivity() {
                             startTime = null // Clear the start time since the timer is being saved
                         )
                         database.categoryDao().updateCategory(updatedCategory)
+
+                        // Cancel the notification for this timer
+                        notificationManager.cancel(categoryId) // Assumes categoryId is used as notification ID
 
                         // Log for debugging
                         Log.d("MainActivity", "Saved timer for category $categoryId to database: $elapsedTime seconds")
